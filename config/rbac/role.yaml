@@ -1,0 +1,32 @@
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: manager-role
+rules:
+- apiGroups:
+  - workload.scott.dev
+  resources:
+  - partitionworkloads
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - workload.scott.dev
+  resources:
+  - partitionworkloads/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - workload.scott.dev
+  resources:
+  - partitionworkloads/status
+  verbs:
+  - get
+  - patch
+  - update

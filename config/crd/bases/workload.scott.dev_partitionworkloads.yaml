@@ -1,0 +1,106 @@
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.20.0
+  name: partitionworkloads.workload.scott.dev
+spec:
+  group: workload.scott.dev
+  names:
+    kind: PartitionWorkload
+    listKind: PartitionWorkloadList
+    plural: partitionworkloads
+    singular: partitionworkload
+  scope: Namespaced
+  versions:
+  - name: v1alpha1
+    schema:
+      openAPIV3Schema:
+        description: PartitionWorkload is the Schema for the partitionworkloads API
+        properties:
+          apiVersion:
+            description: |-
+              APIVersion defines the versioned schema of this representation of an object.
+              Servers should convert recognized schemas to the latest internal value, and
+              may reject unrecognized values.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
+            type: string
+          kind:
+            description: |-
+              Kind is a string value representing the REST resource this object represents.
+              Servers may infer this from the endpoint the client submits requests to.
+              Cannot be updated.
+              In CamelCase.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
+            type: string
+          metadata:
+            type: object
+          spec:
+            description: spec defines the desired state of PartitionWorkload
+            properties:
+              partition:
+                description: |-
+                  Partition describes the number of pods that are updated when a
+                  revision is made to spec.Template. The remaining rest of the pods
+                  (spec.Replicas - spec.Partition) will stay the same. Note that there can
+                  be more than two versions of pods. When the desired state is reached,
+                  only spec.Partition number of pods are guaranteed to have the latest
+                  version. It defaults to spec.Replicas by controller logic.
+                format: int32
+                minimum: 0
+                type: integer
+              replicas:
+                default: 1
+                description: |-
+                  Replicas is the desired number of replicas of the given Template.
+                  These are replicas in the sense that they are instantiations of the
+                  same Template.
+                  If unspecified, defaults to 1.
+                format: int32
+                minimum: 0
+                type: integer
+              template:
+                description: Template describes the pods that will be created.
+                x-kubernetes-preserve-unknown-fields: true
+            required:
+            - template
+            type: object
+          status:
+            description: status defines the observed state of PartitionWorkload
+            properties:
+              observedGeneration:
+                description: |-
+                  ObservedGeneration is the most recent generation observed for this PartitionWorkload. It corresponds to the
+                  PartitionWorkload's generation, which is updated on mutation by the API Server.
+                format: int64
+                minimum: 0
+                type: integer
+              readyReplicas:
+                description: ReadyReplicas is the number of Pods created by the PartitionWorkload
+                  controller that have a Ready Condition.
+                format: int32
+                minimum: 0
+                type: integer
+              updateRevision:
+                description: UpdateRevision, if not empty, indicates the latest revision
+                  of the PartitionWorkload.
+                type: string
+              updatedReplicas:
+                description: |-
+                  UpdatedReplicas is the number of Pods created by the PartitionWorkload controller from the PartitionWorkload version
+                  indicated by updateRevision.
+                format: int32
+                minimum: 0
+                type: integer
+            required:
+            - readyReplicas
+            - updatedReplicas
+            type: object
+        required:
+        - spec
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}

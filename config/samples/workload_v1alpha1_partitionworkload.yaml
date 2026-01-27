@@ -1,0 +1,20 @@
+apiVersion: workload.scott.dev/v1alpha1
+kind: PartitionWorkload
+metadata:
+  labels:
+    app.kubernetes.io/name: nginx
+    app.kubernetes.io/managed-by: kustomize
+  name: partitionworkload-sample
+spec:
+  replicas: 3
+  partition: 2
+  template:
+    metadata:
+      labels:
+        app: nginx
+    spec:
+      containers:
+      - name: nginx
+        image: nginx
+        ports:
+        - containerPort: 80
