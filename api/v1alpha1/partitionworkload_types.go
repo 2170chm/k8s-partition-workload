@@ -32,6 +32,11 @@ type PartitionWorkloadSpec struct {
 	// +kubebuilder:validation:Minimum=0
 	Replicas *int32 `json:"replicas,omitempty"`
 
+	// Selector is a label query over pods that should match the replica count.
+	// It must match the pod template's labels.
+	// +required
+	Selector *metav1.LabelSelector `json:"selector"`
+
 	// Template describes the pods that will be created.
 	// +required
 	// +kubebuilder:pruning:PreserveUnknownFields
@@ -40,8 +45,8 @@ type PartitionWorkloadSpec struct {
 
 	// Partition describes the number of pods that are updated when a
 	// revision is made to spec.Template. The remaining rest of the pods
-	// (spec.Replicas - spec.Partition) will stay the same. Note that there can
-	// be more than two versions of pods. When the desired state is reached,
+	// (spec.Replicas - spec.Partition) can be of any version (but not the latest version).
+	// Note that there can be more than two versions of pods. When the desired state is reached,
 	// only spec.Partition number of pods are guaranteed to have the latest
 	// version. It defaults to spec.Replicas by controller logic.
 	// +kubebuilder:validation:Minimum=0
@@ -66,6 +71,9 @@ type PartitionWorkloadStatus struct {
 	// indicated by updateRevision.
 	// +kubebuilder:validation:Minimum=0
 	UpdatedReplicas int32 `json:"updatedReplicas"`
+
+	// CurrentRevision, if not empty, indicates the current revision version of the PartitionWorkload.
+	CurrentRevision string `json:"currentRevision,omitempty"`
 
 	// UpdateRevision, if not empty, indicates the latest revision of the PartitionWorkload.
 	UpdateRevision string `json:"updateRevision,omitempty"`
