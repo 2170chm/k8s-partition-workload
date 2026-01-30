@@ -9,7 +9,7 @@ import (
 func GetActiveRevisions(instance *workloadv1alpha1.PartitionWorkload, revisions []*apps.ControllerRevision) (
 	*apps.ControllerRevision, *apps.ControllerRevision, int32, error,
 ) {
-	return nil, nil, 0, nil
+	panic("unimplemented")
 }
 
 func TruncateHistory(
@@ -19,5 +19,5 @@ func TruncateHistory(
 	current *apps.ControllerRevision,
 	update *apps.ControllerRevision,
 ) error {
-	return nil
+	panic("unimplemented")
 }

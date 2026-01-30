@@ -37,6 +37,7 @@ import (
 
 	workloadv1alpha1 "github.com/2170chm/k8s-partition-workload/api/v1alpha1"
 	"github.com/2170chm/k8s-partition-workload/internal/controller"
+	historyutil "github.com/openkruise/kruise/pkg/util/history" // Implementation
 	// +kubebuilder:scaffold:imports
 )
 
@@ -179,8 +180,9 @@ func main() {
 	}
 
 	if err := (&controller.PartitionWorkloadReconciler{
-		Client: mgr.GetClient(),
-		Scheme: mgr.GetScheme(),
+		Client:  mgr.GetClient(),
+		Scheme:  mgr.GetScheme(),
+		History: historyutil.NewHistory(mgr.GetClient()),
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "PartitionWorkload")
 		os.Exit(1)

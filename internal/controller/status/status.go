@@ -6,5 +6,5 @@ import (
 )
 
 func UpdateStatus(instance *workloadv1alpha1.PartitionWorkload, newStatus *workloadv1alpha1.PartitionWorkloadStatus, pods []*v1.Pod) error {
-	return nil
+	panic("unimplemented")
 }

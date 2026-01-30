@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package partitionworkload
+package controller
 
 import (
 	"context"
@@ -31,16 +31,18 @@ import (
 	reconcile "sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	workloadv1alpha1 "github.com/2170chm/k8s-partition-workload/api/v1alpha1"
-	pods "github.com/2170chm/k8s-partition-workload/internal/controller/partitionworkload/pods"
-	revision "github.com/2170chm/k8s-partition-workload/internal/controller/partitionworkload/revision"
-	status "github.com/2170chm/k8s-partition-workload/internal/controller/partitionworkload/status"
-	sync "github.com/2170chm/k8s-partition-workload/internal/controller/partitionworkload/sync"
+	pods "github.com/2170chm/k8s-partition-workload/internal/controller/pods"
+	revision "github.com/2170chm/k8s-partition-workload/internal/controller/revision"
+	status "github.com/2170chm/k8s-partition-workload/internal/controller/status"
+	sync "github.com/2170chm/k8s-partition-workload/internal/controller/sync"
 )
 
 // PartitionWorkloadReconciler reconciles a PartitionWorkload object
 type PartitionWorkloadReconciler struct {
 	client.Client
 	Scheme *runtime.Scheme
+
+	History history.Interface
 }
 
 // +kubebuilder:rbac:groups=workload.scott.dev,resources=partitionworkloads,verbs=get;list;watch;create;update;patch;delete
@@ -88,7 +90,7 @@ func (r *PartitionWorkloadReconciler) Reconcile(ctx context.Context, request ctr
 	}
 
 	// Revisions
-	revisions, err := history.ListControllerRevisions(instance, selector)
+	revisions, err := r.History.ListControllerRevisions(instance, selector)
 	if err != nil {
 		return reconcile.Result{}, err
 	}

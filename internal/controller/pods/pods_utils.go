@@ -6,9 +6,9 @@ import (
 )
 
 func GetOwnedPods(instance *workloadv1alpha1.PartitionWorkload) ([]*v1.Pod, error) {
-	return nil, nil
+	panic("unimplemented")
 }
 
 func ClaimPods(instance *workloadv1alpha1.PartitionWorkload, pods []*v1.Pod) ([]*v1.Pod, error) {
-	return nil, nil
+	panic("unimplemented")
 }

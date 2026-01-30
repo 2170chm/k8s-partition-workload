@@ -11,5 +11,5 @@ func SyncCloneSet(
 	currentRevision, updateRevision *apps.ControllerRevision, revisions []*apps.ControllerRevision,
 	filteredPods []*v1.Pod,
 ) error {
-	return nil
+	panic("unimplemented")
 }
