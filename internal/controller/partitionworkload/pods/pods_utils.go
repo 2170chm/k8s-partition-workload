@@ -5,7 +5,7 @@ import (
 	v1 "k8s.io/api/core/v1"
 )
 
-func GetOwnedPods(cs *workloadv1alpha1.PartitionWorkload) ([]*v1.Pod, error) {
+func GetOwnedPods(instance *workloadv1alpha1.PartitionWorkload) ([]*v1.Pod, error) {
 	return nil, nil
 }
 

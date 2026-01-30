@@ -77,6 +77,11 @@ type PartitionWorkloadStatus struct {
 
 	// UpdateRevision, if not empty, indicates the latest revision of the PartitionWorkload.
 	UpdateRevision string `json:"updateRevision,omitempty"`
+
+	// CollisionCount is the count of hash collisions for the PartitionWorkload. The PartitionWorkload controller
+	// uses this field as a collision avoidance mechanism when it needs to create the name for the
+	// newest ControllerRevision.
+	CollisionCount *int32 `json:"collisionCount,omitempty"`
 }
 
 // +kubebuilder:object:root=true

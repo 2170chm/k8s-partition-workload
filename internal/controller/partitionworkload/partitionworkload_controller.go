@@ -24,13 +24,17 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	klog "k8s.io/klog/v2"
+	history "k8s.io/kubernetes/pkg/controller/history"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
-	"sigs.k8s.io/controller-runtime/pkg/reconcile"
+	reconcile "sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	workloadv1alpha1 "github.com/2170chm/k8s-partition-workload/api/v1alpha1"
 	pods "github.com/2170chm/k8s-partition-workload/internal/controller/partitionworkload/pods"
+	revision "github.com/2170chm/k8s-partition-workload/internal/controller/partitionworkload/revision"
+	status "github.com/2170chm/k8s-partition-workload/internal/controller/partitionworkload/status"
+	sync "github.com/2170chm/k8s-partition-workload/internal/controller/partitionworkload/sync"
 )
 
 // PartitionWorkloadReconciler reconciles a PartitionWorkload object
@@ -45,13 +49,6 @@ type PartitionWorkloadReconciler struct {
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.
-// TODO(user): Modify the Reconcile function to compare the state specified by
-// the PartitionWorkload object against the actual cluster state, and then
-// perform operations to make the cluster state reflect the state specified by
-// the user.
-//
-// For more details, check Reconcile and its Result here:
-// - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.23.0/pkg/reconcile
 func (r *PartitionWorkloadReconciler) Reconcile(ctx context.Context, request ctrl.Request) (ctrl.Result, error) {
 	_ = logf.FromContext(ctx)
 
@@ -74,24 +71,57 @@ func (r *PartitionWorkloadReconciler) Reconcile(ctx context.Context, request ctr
 	selector, err := metav1.LabelSelectorAsSelector(instance.Spec.Selector)
 	if err != nil {
 		klog.ErrorS(err, "Error converting PartitionWorkload selector", "partitionworkload", request)
-		// This is a non-transient error, so don't retry.
 		return reconcile.Result{}, nil
 	}
 
 	// List active Pods owned by this PartitionWorkload
-	directOwnedPods, err := pods.GetOwnedPods(instance)
+	OwnedPods, err := pods.GetOwnedPods(instance)
 	if err != nil {
 		return reconcile.Result{}, err
 	}
 
 	// Claim/release pod ownership using label selector matching
 	// This adopts pods that match our selector but aren't owned, and releases pods that don't match
-	allOwnedPods, err = pods.ClaimPods(instance, directOwnedPods)
+	managedPods, err := pods.ClaimPods(instance, OwnedPods)
 	if err != nil {
 		return reconcile.Result{}, err
 	}
 
-	return reconcile.Result{}, nil
+	// Revisions
+	revisions, err := history.ListControllerRevisions(instance, selector)
+	if err != nil {
+		return reconcile.Result{}, err
+	}
+
+	history.SortControllerRevisions(revisions)
+
+	currentRevision, updateRevision, collisionCount, err := revision.GetActiveRevisions(instance, revisions)
+	if err != nil {
+		return reconcile.Result{}, err
+	}
+
+	newStatus := workloadv1alpha1.PartitionWorkloadStatus{
+		ObservedGeneration: instance.Generation,
+		CurrentRevision:    currentRevision.Name,
+		UpdateRevision:     updateRevision.Name,
+		CollisionCount:     &collisionCount,
+	}
+
+	// Core logic to scale and update pods
+	syncErr := sync.SyncCloneSet(instance, &newStatus, currentRevision, updateRevision, revisions, managedPods)
+
+	// Update the status of the resource
+	if err = status.UpdateStatus(instance, &newStatus, managedPods); err != nil {
+		return reconcile.Result{}, err
+	}
+
+	// Clean up history that's above of the limit
+	if err = revision.TruncateHistory(instance, managedPods, revisions, currentRevision, updateRevision); err != nil {
+		klog.ErrorS(err, "Failed to truncate history for CloneSet", "cloneSet", request)
+	}
+
+	// Return the syncErr. If there is a syncErr, controller will requeue
+	return reconcile.Result{}, syncErr
 }
 
 // SetupWithManager sets up the controller with the Manager.
