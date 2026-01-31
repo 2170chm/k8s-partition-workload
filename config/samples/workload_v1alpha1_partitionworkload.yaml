@@ -8,6 +8,9 @@ metadata:
 spec:
   replicas: 3
   partition: 2
+  selector:
+    matchLabels:
+      app: nginx
   template:
     metadata:
       labels:

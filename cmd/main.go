@@ -37,7 +37,8 @@ import (
 
 	workloadv1alpha1 "github.com/2170chm/k8s-partition-workload/api/v1alpha1"
 	"github.com/2170chm/k8s-partition-workload/internal/controller"
-	historyutil "github.com/openkruise/kruise/pkg/util/history" // Implementation
+	fieldindex "github.com/2170chm/k8s-partition-workload/internal/controller/fieldindex"
+	historyutil "github.com/openkruise/kruise/pkg/util/history"
 	// +kubebuilder:scaffold:imports
 )
 
@@ -176,6 +177,12 @@ func main() {
 	})
 	if err != nil {
 		setupLog.Error(err, "unable to start manager")
+		os.Exit(1)
+	}
+
+	setupLog.Info("register field index")
+	if err := fieldindex.RegisterFieldIndexes(mgr.GetCache()); err != nil {
+		setupLog.Error(err, "failed to register field index")
 		os.Exit(1)
 	}
 

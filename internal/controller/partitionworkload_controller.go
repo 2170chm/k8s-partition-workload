@@ -77,7 +77,7 @@ func (r *PartitionWorkloadReconciler) Reconcile(ctx context.Context, request ctr
 	}
 
 	// List active Pods owned by this PartitionWorkload
-	OwnedPods, err := pods.GetOwnedPods(instance)
+	OwnedPods, err := pods.GetOwnedPods(r.Client, instance)
 	if err != nil {
 		return reconcile.Result{}, err
 	}
