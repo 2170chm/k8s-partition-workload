@@ -20,21 +20,22 @@ import (
 	"context"
 	"time"
 
+	apps "k8s.io/api/apps/v1"
+	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	klog "k8s.io/klog/v2"
+	kubecontroller "k8s.io/kubernetes/pkg/controller"
 	history "k8s.io/kubernetes/pkg/controller/history"
 	ctrl "sigs.k8s.io/controller-runtime"
-	"sigs.k8s.io/controller-runtime/pkg/client"
+	client "sigs.k8s.io/controller-runtime/pkg/client"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	reconcile "sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	workloadv1alpha1 "github.com/2170chm/k8s-partition-workload/api/v1alpha1"
-	pods "github.com/2170chm/k8s-partition-workload/internal/controller/pods"
 	revision "github.com/2170chm/k8s-partition-workload/internal/controller/revision"
-	status "github.com/2170chm/k8s-partition-workload/internal/controller/status"
-	sync "github.com/2170chm/k8s-partition-workload/internal/controller/sync"
+	refmanager "github.com/2170chm/k8s-partition-workload/internal/util/refmanager"
 )
 
 // PartitionWorkloadReconciler reconciles a PartitionWorkload object
@@ -42,7 +43,7 @@ type PartitionWorkloadReconciler struct {
 	client.Client
 	Scheme *runtime.Scheme
 
-	History history.Interface
+	HistoryControl history.Interface
 }
 
 // +kubebuilder:rbac:groups=workload.scott.dev,resources=partitionworkloads,verbs=get;list;watch;create;update;patch;delete
@@ -76,28 +77,29 @@ func (r *PartitionWorkloadReconciler) Reconcile(ctx context.Context, request ctr
 		return reconcile.Result{}, nil
 	}
 
-	// List active Pods owned by this PartitionWorkload
-	OwnedPods, err := pods.GetOwnedPods(r.Client, instance)
+	// List all active Pods
+	activePods, err := r.getActivePods(instance)
 	if err != nil {
 		return reconcile.Result{}, err
 	}
 
 	// Claim/release pod ownership using label selector matching
 	// This adopts pods that match our selector but aren't owned, and releases pods that don't match
-	managedPods, err := pods.ClaimPods(instance, OwnedPods)
+	claimedPods, err := r.claimPods(instance, r.Scheme, activePods)
 	if err != nil {
 		return reconcile.Result{}, err
 	}
 
 	// Revisions
-	revisions, err := r.History.ListControllerRevisions(instance, selector)
+	revisions, err := r.HistoryControl.ListControllerRevisions(instance, selector)
 	if err != nil {
 		return reconcile.Result{}, err
 	}
 
+	// sort for calculating next revision
 	history.SortControllerRevisions(revisions)
 
-	currentRevision, updateRevision, collisionCount, err := revision.GetActiveRevisions(instance, revisions)
+	currentRevision, updateRevision, collisionCount, err := r.getActiveRevisions(instance, revisions)
 	if err != nil {
 		return reconcile.Result{}, err
 	}
@@ -110,17 +112,17 @@ func (r *PartitionWorkloadReconciler) Reconcile(ctx context.Context, request ctr
 	}
 
 	// Core logic to scale and update pods
-	syncErr := sync.SyncCloneSet(instance, &newStatus, currentRevision, updateRevision, revisions, managedPods)
+	syncErr := r.syncPods(instance, &newStatus, currentRevision, updateRevision, revisions, claimedPods)
 
 	// Update the status of the resource
-	if err = status.UpdateStatus(instance, &newStatus, managedPods); err != nil {
-		return reconcile.Result{}, err
-	}
+	// if err = status.UpdateStatus(instance, &newStatus, claimedPods); err != nil {
+	// 	return reconcile.Result{}, err
+	// }
 
 	// Clean up history that's above of the limit
-	if err = revision.TruncateHistory(instance, managedPods, revisions, currentRevision, updateRevision); err != nil {
-		klog.ErrorS(err, "Failed to truncate history for CloneSet", "cloneSet", request)
-	}
+	// if err = revision.TruncateHistory(instance, claimedPods, revisions, currentRevision, updateRevision); err != nil {
+	// 	klog.ErrorS(err, "Failed to truncate history for CloneSet", "cloneSet", request)
+	// }
 
 	// Return the syncErr. If there is a syncErr, controller will requeue
 	return reconcile.Result{}, syncErr
@@ -132,4 +134,117 @@ func (r *PartitionWorkloadReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		For(&workloadv1alpha1.PartitionWorkload{}).
 		Named("partitionworkload").
 		Complete(r)
+}
+
+func (r *PartitionWorkloadReconciler) getActivePods(instance *workloadv1alpha1.PartitionWorkload) ([]*v1.Pod, error) {
+	podList := &v1.PodList{}
+	if err := r.Client.List(context.TODO(), podList, client.InNamespace(instance.Namespace)); err != nil {
+		return nil, err
+	}
+	var activePods []*v1.Pod
+	for i := range podList.Items {
+		pod := &podList.Items[i]
+		if kubecontroller.IsPodActive(pod) {
+			activePods = append(activePods, pod)
+		}
+	}
+	return activePods, nil
+}
+
+func (r *PartitionWorkloadReconciler) claimPods(instance *workloadv1alpha1.PartitionWorkload, scheme *runtime.Scheme, pods []*v1.Pod) ([]*v1.Pod, error) {
+	mgr, err := refmanager.New(r.Client, instance.Spec.Selector, instance, scheme)
+	if err != nil {
+		return nil, err
+	}
+	selected := make([]metav1.Object, len(pods))
+	for i, pod := range pods {
+		selected[i] = pod
+	}
+
+	claimed, err := mgr.ClaimOwnedObjects(selected)
+	if err != nil {
+		return nil, err
+	}
+
+	claimedPods := make([]*v1.Pod, len(claimed))
+	for i, pod := range claimed {
+		claimedPods[i] = pod.(*v1.Pod)
+	}
+
+	return claimedPods, nil
+}
+
+func (r *PartitionWorkloadReconciler) getActiveRevisions(instance *workloadv1alpha1.PartitionWorkload, revisions []*apps.ControllerRevision) (
+	*apps.ControllerRevision, *apps.ControllerRevision, int32, error,
+) {
+	var currentRevision, updateRevision *apps.ControllerRevision
+	revisionCount := len(revisions)
+
+	// Use a local copy of instance.Status.CollisionCount to avoid modifying instance.Status directly.
+	// CollisionCount tracks hash collisions when creating revision names
+	var collisionCount int32
+	if instance.Status.CollisionCount != nil {
+		collisionCount = *instance.Status.CollisionCount
+	}
+
+	// Calculate the next revision number
+	var nextRevision int64
+	revisionCount = len(revisions)
+	if revisionCount <= 0 {
+		nextRevision = 1
+	} else {
+		nextRevision = revisions[revisionCount-1].Revision + 1
+	}
+
+	// Create a new revision representing the current spec's pod template
+	// If an equivalent revision already exists, it will be reused
+	updateRevision, err := revision.NewRevision(instance, nextRevision, &collisionCount)
+	if err != nil {
+		return nil, nil, collisionCount, err
+	}
+
+	// Check if equivalent revision exists
+	equalRevisions := history.FindEqualRevisions(revisions, updateRevision)
+	equalCount := len(equalRevisions)
+
+	if equalCount > 0 && history.EqualRevision(revisions[revisionCount-1], equalRevisions[equalCount-1]) {
+		// if the equivalent revision is immediately prior the update revision has not changed
+		updateRevision = revisions[revisionCount-1]
+	} else if equalCount > 0 {
+		// if the equivalent revision is not immediately prior we will roll back by incrementing the
+		// Revision of the equivalent revision
+		updateRevision, err = r.HistoryControl.UpdateControllerRevision(equalRevisions[equalCount-1], updateRevision.Revision)
+		if err != nil {
+			return nil, nil, collisionCount, err
+		}
+	} else {
+		// if there is no equivalent revision we create a new one
+		updateRevision, err = r.HistoryControl.CreateControllerRevision(instance, updateRevision, &collisionCount)
+		if err != nil {
+			return nil, nil, collisionCount, err
+		}
+	}
+
+	// attempt to find the revision that corresponds to the current revision
+	for i := range revisions {
+		if revisions[i].Name == instance.Status.CurrentRevision {
+			currentRevision = revisions[i]
+			break
+		}
+	}
+
+	// if the current revision is nil we initialize the history by setting it to the update revision
+	if currentRevision == nil {
+		currentRevision = updateRevision
+	}
+
+	return currentRevision, updateRevision, collisionCount, nil
+}
+
+func (r *PartitionWorkloadReconciler) syncPods(
+	instance *workloadv1alpha1.PartitionWorkload, newStatus *workloadv1alpha1.PartitionWorkloadStatus,
+	currentRevision, updateRevision *apps.ControllerRevision, revisions []*apps.ControllerRevision,
+	pods []*v1.Pod,
+) error {
+	panic("unimplemented")
 }

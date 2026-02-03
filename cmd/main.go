@@ -37,8 +37,7 @@ import (
 
 	workloadv1alpha1 "github.com/2170chm/k8s-partition-workload/api/v1alpha1"
 	"github.com/2170chm/k8s-partition-workload/internal/controller"
-	fieldindex "github.com/2170chm/k8s-partition-workload/internal/controller/fieldindex"
-	historyutil "github.com/openkruise/kruise/pkg/util/history"
+	historyutil "github.com/2170chm/k8s-partition-workload/internal/util/history"
 	// +kubebuilder:scaffold:imports
 )
 
@@ -180,16 +179,16 @@ func main() {
 		os.Exit(1)
 	}
 
-	setupLog.Info("register field index")
-	if err := fieldindex.RegisterFieldIndexes(mgr.GetCache()); err != nil {
-		setupLog.Error(err, "failed to register field index")
-		os.Exit(1)
-	}
+	// setupLog.Info("register field index")
+	// if err := fieldindex.RegisterFieldIndexes(mgr.GetCache()); err != nil {
+	// 	setupLog.Error(err, "failed to register field index")
+	// 	os.Exit(1)
+	// }
 
 	if err := (&controller.PartitionWorkloadReconciler{
-		Client:  mgr.GetClient(),
-		Scheme:  mgr.GetScheme(),
-		History: historyutil.NewHistory(mgr.GetClient()),
+		Client:         mgr.GetClient(),
+		Scheme:         mgr.GetScheme(),
+		HistoryControl: historyutil.NewHistory(mgr.GetClient()),
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "PartitionWorkload")
 		os.Exit(1)
