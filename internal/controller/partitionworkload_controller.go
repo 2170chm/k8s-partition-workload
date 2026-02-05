@@ -1,19 +1,3 @@
-/*
-Copyright 2026.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
-
 package controller
 
 import (
@@ -34,7 +18,9 @@ import (
 	reconcile "sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	workloadv1alpha1 "github.com/2170chm/k8s-partition-workload/api/v1alpha1"
+	condition "github.com/2170chm/k8s-partition-workload/internal/controller/condition"
 	revision "github.com/2170chm/k8s-partition-workload/internal/controller/revision"
+	sync "github.com/2170chm/k8s-partition-workload/internal/controller/sync"
 	refmanager "github.com/2170chm/k8s-partition-workload/internal/util/refmanager"
 )
 
@@ -44,6 +30,7 @@ type PartitionWorkloadReconciler struct {
 	Scheme *runtime.Scheme
 
 	HistoryControl history.Interface
+	SyncControl    sync.Interface
 }
 
 // +kubebuilder:rbac:groups=workload.scott.dev,resources=partitionworkloads,verbs=get;list;watch;create;update;patch;delete
@@ -83,12 +70,18 @@ func (r *PartitionWorkloadReconciler) Reconcile(ctx context.Context, request ctr
 		return reconcile.Result{}, err
 	}
 
+	// klog.InfoS("---- pods update ----")
+	// klog.InfoS("All activePods", "detail", klog.KObjSlice(activePods))
+
 	// Claim/release pod ownership using label selector matching
 	// This adopts pods that match our selector but aren't owned, and releases pods that don't match
 	claimedPods, err := r.claimPods(instance, r.Scheme, activePods)
 	if err != nil {
 		return reconcile.Result{}, err
 	}
+
+	klog.InfoS("---- pods update ----")
+	klog.InfoS("Claimed pods", "detail", klog.KObjSlice(claimedPods))
 
 	// Revisions
 	revisions, err := r.HistoryControl.ListControllerRevisions(instance, selector)
@@ -99,10 +92,18 @@ func (r *PartitionWorkloadReconciler) Reconcile(ctx context.Context, request ctr
 	// sort for calculating next revision
 	history.SortControllerRevisions(revisions)
 
+	klog.InfoS("---- revision update ----")
+	klog.InfoS("Sorted Revisions", "detail", klog.KObjSlice(revisions))
+
 	currentRevision, updateRevision, collisionCount, err := r.getActiveRevisions(instance, revisions)
 	if err != nil {
 		return reconcile.Result{}, err
 	}
+
+	klog.InfoS("---- revision update ----")
+	klog.InfoS("currentRevision", "detail", klog.KObj(currentRevision))
+	klog.InfoS("updatedRevision", "detail", klog.KObj(updateRevision))
+	klog.InfoS("collisionCount", "count", collisionCount)
 
 	newStatus := workloadv1alpha1.PartitionWorkloadStatus{
 		ObservedGeneration: instance.Generation,
@@ -121,7 +122,7 @@ func (r *PartitionWorkloadReconciler) Reconcile(ctx context.Context, request ctr
 
 	// Clean up history that's above of the limit
 	// if err = revision.TruncateHistory(instance, claimedPods, revisions, currentRevision, updateRevision); err != nil {
-	// 	klog.ErrorS(err, "Failed to truncate history for CloneSet", "cloneSet", request)
+	// 	klog.ErrorS(err, "Failed to truncate history for PartitionWorkload", "PartitionWorkload", request)
 	// }
 
 	// Return the syncErr. If there is a syncErr, controller will requeue
@@ -246,5 +247,41 @@ func (r *PartitionWorkloadReconciler) syncPods(
 	currentRevision, updateRevision *apps.ControllerRevision, revisions []*apps.ControllerRevision,
 	pods []*v1.Pod,
 ) error {
-	panic("unimplemented")
+	// If PartitionWorkload is being deleted, just let garbage collection clean up pods
+	if instance.DeletionTimestamp != nil {
+		return nil
+	}
+
+	// ApplyRevision reconstructs the PartitionWorkload spec as it was at each revision
+	// currentSet = PartitionWorkload with currentRevision's pod template
+	// updateSet = PartitionWorkload with updateRevision's pod template (latest spec)
+	// This lets us compare and transition pods between versions
+	currentPW, err := revision.ApplyRevision(instance, currentRevision)
+	if err != nil {
+		return err
+	}
+	updatedPW, err := revision.ApplyRevision(instance, updateRevision)
+	if err != nil {
+		return err
+	}
+
+	klog.InfoS("---- partition workload definition update ----")
+	klog.InfoS("currentPW definition", "detail", currentPW)
+	klog.InfoS("updatedPW definition", "detail", updatedPW)
+
+	// Scale operation: Adjust the number of pods to match spec.Replicas
+	// Creates new pods or deletes existing ones without changing their template version
+	// Returns scaling=true if scale operation is in progress (skip updates until stable)
+	err = r.SyncControl.ScaleAndUpdate(currentPW, updatedPW, currentRevision.Name, updateRevision.Name, pods)
+	if err != nil {
+		cond := workloadv1alpha1.PartitionWorkloadCondition{
+			Type:               workloadv1alpha1.PartionWorkloadConditionFailedScale,
+			Status:             v1.ConditionTrue,
+			LastTransitionTime: metav1.Now(),
+			Message:            err.Error(),
+		}
+		condition.SetCondition(newStatus, cond)
+	}
+
+	return err
 }

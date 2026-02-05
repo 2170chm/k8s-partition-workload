@@ -5,16 +5,11 @@ import (
 
 	workloadv1alpha1 "github.com/2170chm/k8s-partition-workload/api/v1alpha1"
 	apps "k8s.io/api/apps/v1"
-	"k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset/scheme"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/strategicpatch"
 	"k8s.io/kubernetes/pkg/controller/history"
-)
 
-var (
-	schemaGroupVersion = workloadv1alpha1.SchemeGroupVersion
-	patchCodec         = scheme.Codecs.LegacyCodec(schemaGroupVersion)
-	controllerKind     = schemaGroupVersion.WithKind("PartitionWorkload")
+	config "github.com/2170chm/k8s-partition-workload/internal/controller/config"
 )
 
 func NewRevision(instance *workloadv1alpha1.PartitionWorkload, revision int64, collisionCount *int32) (*apps.ControllerRevision, error) {
@@ -23,7 +18,7 @@ func NewRevision(instance *workloadv1alpha1.PartitionWorkload, revision int64, c
 		return nil, err
 	}
 	cr, err := history.NewControllerRevision(instance,
-		controllerKind,
+		config.ControllerKind,
 		instance.Spec.Template.Labels,
 		runtime.RawExtension{Raw: patch},
 		revision,
@@ -41,7 +36,7 @@ func NewRevision(instance *workloadv1alpha1.PartitionWorkload, revision int64, c
 }
 
 func getPatch(instance *workloadv1alpha1.PartitionWorkload) ([]byte, error) {
-	str, err := runtime.Encode(patchCodec, instance)
+	str, err := runtime.Encode(config.PatchCodec, instance)
 	if err != nil {
 		return nil, err
 	}
@@ -61,7 +56,7 @@ func getPatch(instance *workloadv1alpha1.PartitionWorkload) ([]byte, error) {
 
 func ApplyRevision(instance *workloadv1alpha1.PartitionWorkload, revision *apps.ControllerRevision) (*workloadv1alpha1.PartitionWorkload, error) {
 	clone := instance.DeepCopy()
-	cloneBytes, err := runtime.Encode(patchCodec, clone)
+	cloneBytes, err := runtime.Encode(config.PatchCodec, clone)
 	if err != nil {
 		return nil, err
 	}

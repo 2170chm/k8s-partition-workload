@@ -43,11 +43,11 @@ type PartitionWorkloadSpec struct {
 	// +kubebuilder:validation:Schemaless
 	Template v1.PodTemplateSpec `json:"template"`
 
-	// Partition describes the number of pods that are updated when a
-	// revision is made to spec.Template. The remaining rest of the pods
+	// Partition describes the number of pods that are at the latest pod template revision
+	// when revision is made to spec.Template. The remaining rest of the pods
 	// (spec.Replicas - spec.Partition) can be of any version (but not the latest version).
 	// Note that there can be more than two versions of pods. When the desired state is reached,
-	// only spec.Partition number of pods are guaranteed to have the latest
+	// exactly spec.Partition number of pods have the latest
 	// version. It defaults to spec.Replicas by controller logic.
 	// +kubebuilder:validation:Minimum=0
 	Partition *int32 `json:"partition,omitempty"`
@@ -63,9 +63,9 @@ type PartitionWorkloadStatus struct {
 	// +kubebuilder:validation:Minimum=0
 	ObservedGeneration int64 `json:"observedGeneration,omitempty"`
 
-	// ReadyReplicas is the number of Pods created by the PartitionWorkload controller that have a Ready Condition.
+	// ReadyReplicas is the number of Pods created by the PartitionWorkload controller
 	// +kubebuilder:validation:Minimum=0
-	ReadyReplicas int32 `json:"readyReplicas"`
+	Replicas int32 `json:"readyReplicas"`
 
 	// UpdatedReplicas is the number of Pods created by the PartitionWorkload controller from the PartitionWorkload version
 	// indicated by updateRevision.
@@ -82,6 +82,30 @@ type PartitionWorkloadStatus struct {
 	// uses this field as a collision avoidance mechanism when it needs to create the name for the
 	// newest ControllerRevision.
 	CollisionCount *int32 `json:"collisionCount,omitempty"`
+
+	// Conditions represents the latest available observations of a PartitionWorkload's current state.
+	Conditions []PartitionWorkloadCondition `json:"conditions,omitempty"`
+}
+
+type PartitionWorkloadConditionType string
+
+const (
+	ConditionFailedScale PartitionWorkloadConditionType = "FailedScale"
+)
+
+type PartitionWorkloadCondition struct {
+	// Type of PartitionWorkload condition.
+	Type PartitionWorkloadConditionType `json:"type"`
+	// Status of the condition, one of True, False, Unknown.
+	Status v1.ConditionStatus `json:"status"`
+	// Last time the condition is updated.
+	LastUpdateTime metav1.Time `json:"lastUpdateTime,omitempty"`
+	// Last time the condition transitioned from one status to another.
+	LastTransitionTime metav1.Time `json:"lastTransitionTime,omitempty"`
+	// The reason for the condition's last transition.
+	Reason string `json:"reason,omitempty"`
+	// A human readable message indicating details about the transition.
+	Message string `json:"message,omitempty"`
 }
 
 // +kubebuilder:object:root=true

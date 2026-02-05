@@ -77,125 +77,6 @@ func (mgr *RefManager) ClaimOwnedObjects(objs []metav1.Object, filters ...func(m
 	return claimObjs, utilerrors.NewAggregate(errlist)
 }
 
-func (mgr *RefManager) canAdoptOnce() error {
-	mgr.once.Do(func() {
-		mgr.canAdoptErr = mgr.canAdopt()
-	})
-
-	return mgr.canAdoptErr
-}
-
-func (mgr *RefManager) getOwner() (runtime.Object, error) {
-	return getOwner(mgr.owner, mgr.schema, mgr.client)
-}
-
-var getOwner = func(owner metav1.Object, schema *runtime.Scheme, c client.Client) (runtime.Object, error) {
-	runtimeObj, ok := owner.(runtime.Object)
-	if !ok {
-		return nil, fmt.Errorf("fail to convert %s/%s to runtime object", owner.GetNamespace(), owner.GetName())
-	}
-
-	kinds, _, err := schema.ObjectKinds(runtimeObj)
-	if err != nil {
-		return nil, err
-	}
-
-	obj, err := schema.New(kinds[0])
-	if err != nil {
-		return nil, err
-	}
-	clientObj, ok := obj.(client.Object)
-	if !ok {
-		return nil, fmt.Errorf("can't get owner %s/%s: fail to cast to client.Object", owner.GetNamespace(), owner.GetName())
-	}
-
-	if err := c.Get(context.TODO(), client.ObjectKey{Namespace: owner.GetNamespace(), Name: owner.GetName()}, clientObj); err != nil {
-		return nil, err
-	}
-	return obj, nil
-}
-
-func (mgr *RefManager) updateOwner(object client.Object) error {
-	return updateOwner(object, mgr.client)
-}
-
-var updateOwner = func(object client.Object, c client.Client) error {
-	return c.Update(context.TODO(), object)
-}
-
-func (mgr *RefManager) canAdopt() error {
-	fresh, err := mgr.getOwner()
-	if err != nil {
-		return err
-	}
-
-	freshObj, ok := fresh.(metav1.Object)
-	if !ok {
-		return fmt.Errorf("expected k8s.io/apimachinery/pkg/apis/meta/v1.object when getting owner %v/%v UID %v",
-			mgr.owner.GetNamespace(), mgr.owner.GetName(), mgr.owner.GetUID())
-	}
-
-	if freshObj.GetUID() != mgr.owner.GetUID() {
-		return fmt.Errorf("original owner %v/%v is gone: got uid %v, wanted %v",
-			mgr.owner.GetNamespace(), mgr.owner.GetName(), freshObj.GetUID(), mgr.owner.GetUID())
-	}
-
-	if freshObj.GetDeletionTimestamp() != nil {
-		return fmt.Errorf("%v/%v has just been deleted at %v",
-			mgr.owner.GetNamespace(), mgr.owner.GetName(), freshObj.GetDeletionTimestamp())
-	}
-
-	return nil
-}
-
-func (mgr *RefManager) adopt(obj metav1.Object) error {
-	if err := mgr.canAdoptOnce(); err != nil {
-		return fmt.Errorf("can't adopt Object %v/%v (%v): %v", obj.GetNamespace(), obj.GetName(), obj.GetUID(), err)
-	}
-
-	if mgr.schema == nil {
-		return nil
-	}
-
-	if err := controllerutil.SetControllerReference(mgr.owner, obj, mgr.schema); err != nil {
-		return fmt.Errorf("can't set Object %v/%v (%v) owner reference: %v", obj.GetNamespace(), obj.GetName(), obj.GetUID(), err)
-	}
-
-	clientObj, ok := obj.(client.Object)
-	if !ok {
-		return fmt.Errorf("can't update Object %v/%v (%v) owner reference: fail to cast to client.Object", obj.GetNamespace(), obj.GetName(), obj.GetUID())
-	}
-
-	if err := mgr.updateOwner(clientObj); err != nil {
-		return fmt.Errorf("can't update Object %v/%v (%v) owner reference: %v", obj.GetNamespace(), obj.GetName(), obj.GetUID(), err)
-	}
-	return nil
-}
-
-func (mgr *RefManager) release(obj metav1.Object) error {
-	idx := -1
-	for i, ref := range obj.GetOwnerReferences() {
-		if ref.UID == mgr.owner.GetUID() {
-			idx = i
-			break
-		}
-	}
-	if idx > -1 {
-		clientObj, ok := obj.(runtime.Object).DeepCopyObject().(client.Object)
-		if !ok {
-			return fmt.Errorf("can't remove Pod %v/%v (%v) owner reference: fail to cast to client.Object", obj.GetNamespace(), obj.GetName(), obj.GetUID())
-		}
-
-		clientObj.SetOwnerReferences(append(clientObj.GetOwnerReferences()[:idx], clientObj.GetOwnerReferences()[idx+1:]...))
-		if err := mgr.updateOwner(clientObj); err != nil {
-			return fmt.Errorf("can't remove Pod %v/%v (%v) owner reference %v/%v (%v): %v",
-				obj.GetNamespace(), obj.GetName(), obj.GetUID(), obj.GetNamespace(), obj.GetName(), mgr.owner.GetUID(), err)
-		}
-	}
-
-	return nil
-}
-
 func (mgr *RefManager) claimObject(obj metav1.Object, match func(metav1.Object) bool) (bool, error) {
 	controllerRef := metav1.GetControllerOf(obj)
 	if controllerRef != nil {
@@ -249,4 +130,119 @@ func (mgr *RefManager) claimObject(obj metav1.Object, match func(metav1.Object) 
 	}
 	// Successfully adopted.
 	return true, nil
+}
+
+func (mgr *RefManager) canAdoptOnce() error {
+	mgr.once.Do(func() {
+		mgr.canAdoptErr = mgr.canAdopt()
+	})
+
+	return mgr.canAdoptErr
+}
+
+func (mgr *RefManager) getOwner() (runtime.Object, error) {
+	return getOwner(mgr.owner, mgr.schema, mgr.client)
+}
+
+var getOwner = func(owner metav1.Object, schema *runtime.Scheme, c client.Client) (runtime.Object, error) {
+	runtimeObj, ok := owner.(runtime.Object)
+	if !ok {
+		return nil, fmt.Errorf("fail to convert %s/%s to runtime object", owner.GetNamespace(), owner.GetName())
+	}
+
+	kinds, _, err := schema.ObjectKinds(runtimeObj)
+	if err != nil {
+		return nil, err
+	}
+
+	obj, err := schema.New(kinds[0])
+	if err != nil {
+		return nil, err
+	}
+	clientObj, ok := obj.(client.Object)
+	if !ok {
+		return nil, fmt.Errorf("can't get owner %s/%s: fail to cast to client.Object", owner.GetNamespace(), owner.GetName())
+	}
+
+	if err := c.Get(context.TODO(), client.ObjectKey{Namespace: owner.GetNamespace(), Name: owner.GetName()}, clientObj); err != nil {
+		return nil, err
+	}
+	return obj, nil
+}
+
+func (mgr *RefManager) canAdopt() error {
+	fresh, err := mgr.getOwner()
+	if err != nil {
+		return err
+	}
+
+	freshObj, ok := fresh.(metav1.Object)
+	if !ok {
+		return fmt.Errorf("expected k8s.io/apimachinery/pkg/apis/meta/v1.object when getting owner %v/%v UID %v",
+			mgr.owner.GetNamespace(), mgr.owner.GetName(), mgr.owner.GetUID())
+	}
+
+	if freshObj.GetUID() != mgr.owner.GetUID() {
+		return fmt.Errorf("original owner %v/%v is gone: got uid %v, wanted %v",
+			mgr.owner.GetNamespace(), mgr.owner.GetName(), freshObj.GetUID(), mgr.owner.GetUID())
+	}
+
+	if freshObj.GetDeletionTimestamp() != nil {
+		return fmt.Errorf("%v/%v has just been deleted at %v",
+			mgr.owner.GetNamespace(), mgr.owner.GetName(), freshObj.GetDeletionTimestamp())
+	}
+
+	return nil
+}
+
+func (mgr *RefManager) adopt(obj metav1.Object) error {
+	if err := mgr.canAdoptOnce(); err != nil {
+		return fmt.Errorf("can't adopt Object %v/%v (%v): %v", obj.GetNamespace(), obj.GetName(), obj.GetUID(), err)
+	}
+
+	if mgr.schema == nil {
+		return nil
+	}
+
+	if err := controllerutil.SetControllerReference(mgr.owner, obj, mgr.schema); err != nil {
+		return fmt.Errorf("can't set Object %v/%v (%v) owner reference: %v", obj.GetNamespace(), obj.GetName(), obj.GetUID(), err)
+	}
+
+	clientObj, ok := obj.(client.Object)
+	if !ok {
+		return fmt.Errorf("can't update Object %v/%v (%v) owner reference: fail to cast to client.Object", obj.GetNamespace(), obj.GetName(), obj.GetUID())
+	}
+
+	if err := mgr.registerUpdate(clientObj); err != nil {
+		return fmt.Errorf("can't update Object %v/%v (%v) owner reference: %v", obj.GetNamespace(), obj.GetName(), obj.GetUID(), err)
+	}
+	return nil
+}
+
+func (mgr *RefManager) release(obj metav1.Object) error {
+	idx := -1
+	for i, ref := range obj.GetOwnerReferences() {
+		if ref.UID == mgr.owner.GetUID() {
+			idx = i
+			break
+		}
+	}
+	if idx > -1 {
+		clientObj, ok := obj.(runtime.Object).DeepCopyObject().(client.Object)
+		if !ok {
+			return fmt.Errorf("can't remove Pod %v/%v (%v) owner reference: fail to cast to client.Object", obj.GetNamespace(), obj.GetName(), obj.GetUID())
+		}
+
+		clientObj.SetOwnerReferences(append(clientObj.GetOwnerReferences()[:idx], clientObj.GetOwnerReferences()[idx+1:]...))
+		if err := mgr.registerUpdate(clientObj); err != nil {
+			return fmt.Errorf("can't remove Pod %v/%v (%v) owner reference %v/%v (%v): %v",
+				obj.GetNamespace(), obj.GetName(), obj.GetUID(), obj.GetNamespace(), obj.GetName(), mgr.owner.GetUID(), err)
+		}
+	}
+
+	return nil
+}
+
+func (mgr *RefManager) registerUpdate(object client.Object) error {
+	return mgr.client.Update(context.TODO(), object)
 }

@@ -37,6 +37,7 @@ import (
 
 	workloadv1alpha1 "github.com/2170chm/k8s-partition-workload/api/v1alpha1"
 	"github.com/2170chm/k8s-partition-workload/internal/controller"
+	syncutil "github.com/2170chm/k8s-partition-workload/internal/controller/sync"
 	historyutil "github.com/2170chm/k8s-partition-workload/internal/util/history"
 	// +kubebuilder:scaffold:imports
 )
@@ -48,8 +49,8 @@ var (
 
 func init() {
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
-
 	utilruntime.Must(workloadv1alpha1.AddToScheme(scheme))
+	utilruntime.Must(workloadv1alpha1.AddToScheme(clientgoscheme.Scheme))
 	// +kubebuilder:scaffold:scheme
 }
 
@@ -189,6 +190,7 @@ func main() {
 		Client:         mgr.GetClient(),
 		Scheme:         mgr.GetScheme(),
 		HistoryControl: historyutil.NewHistory(mgr.GetClient()),
+		SyncControl:    syncutil.NewSync(mgr.GetClient()),
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "PartitionWorkload")
 		os.Exit(1)
