@@ -60,12 +60,12 @@ func (r *realSync) ScaleAndUpdate(
 	// notUpdatedPods: pods still on older revisions
 	updatedPods, notUpdatedPods := groupUpdatedAndNotUpdatedPods(pods, updatedRevision)
 	klog.InfoS("---- pods grouped by revision ----")
-	klog.InfoS("updatedPods", "detail", klog.KObjSlice(updatedPods))
-	klog.InfoS("notUpdatedPods", "detail", klog.KObjSlice(notUpdatedPods))
+	klog.InfoS("Pods with updated revision", "detail", klog.KObjSlice(updatedPods))
+	klog.InfoS("Pods with other revisions", "detail", klog.KObjSlice(notUpdatedPods))
 
 	// PHASE 3: Scale up - create new pods if we need more replicas
 	// Create the pods (some with old template, some with new)
-	if err := r.createPods(diffRes.scaleUpNumOldRevision, diffRes.scaleUpNum,
+	if err := r.createPods(diffRes.scaleUpNum, diffRes.scaleUpNumOldRevision,
 		currentPW, updatedPW, currentRevision, updatedRevision); err != nil {
 		return err
 	}
@@ -157,7 +157,7 @@ func (r *realSync) deletePods(expectedUpdatedDeletions int, expectedCurrentDelet
 
 	klog.InfoS("---- pod deletion plan ----")
 	klog.InfoS("expectedCurrentDeletions", "count", expectedCurrentDeletions)
-	klog.InfoS("expectedUpdatedDeletions", "count", expectedCurrentDeletions)
+	klog.InfoS("expectedUpdatedDeletions", "count", expectedUpdatedDeletions)
 	klog.InfoS("pods object to delete", "pod", klog.KObjSlice(podsToDelete))
 
 	for _, pod := range podsToDelete {

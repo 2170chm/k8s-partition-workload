@@ -93,6 +93,7 @@ func calculateDiffs(pw *workloadv1alpha1.PartitionWorkload, pods []*v1.Pod, curr
 	updateOldDiff := oldRevisionCount - (replicas - partition)
 
 	if updatedRevision == currentRevision {
+		klog.InfoS("Only one revision detected, updating with latest revision to match replica count")
 		updateNewDiff = newRevisionCount + oldRevisionCount - replicas
 		updateOldDiff = 0
 	}
