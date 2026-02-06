@@ -90,7 +90,7 @@ type PartitionWorkloadStatus struct {
 type PartitionWorkloadConditionType string
 
 const (
-	ConditionFailedScale PartitionWorkloadConditionType = "FailedScale"
+	PartionWorkloadConditionFailedScale PartitionWorkloadConditionType = "FailedScale"
 )
 
 type PartitionWorkloadCondition struct {

@@ -4,6 +4,7 @@ import (
 	"sort"
 	"sync"
 
+	apps "k8s.io/api/apps/v1"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/utils/integer"
 )
@@ -55,4 +56,8 @@ func DoItSlowly(count int, initialBatchSize int, fn func() error) (int, error) {
 		remaining -= batchSize
 	}
 	return successes, nil
+}
+
+func EqualToRevisionHash(pod *v1.Pod, hash string) bool {
+	return pod.GetLabels()[apps.ControllerRevisionHashLabelKey] == hash
 }

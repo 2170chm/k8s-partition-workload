@@ -3,8 +3,6 @@ package refmanager
 import (
 	"context"
 	"fmt"
-	"reflect"
-	"sync"
 
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -14,39 +12,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 )
-
-// RefManager provides the method to
-type RefManager struct {
-	client    client.Client
-	selector  labels.Selector
-	owner     metav1.Object
-	ownerType reflect.Type
-	schema    *runtime.Scheme
-
-	once        sync.Once
-	canAdoptErr error
-}
-
-// New returns a RefManager that exposes
-// methods to manage the controllerRef of pods.
-func New(client client.Client, selector *metav1.LabelSelector, owner metav1.Object, schema *runtime.Scheme) (*RefManager, error) {
-	s, err := metav1.LabelSelectorAsSelector(selector)
-	if err != nil {
-		return nil, err
-	}
-
-	ownerType := reflect.TypeOf(owner)
-	if ownerType.Kind() == reflect.Ptr {
-		ownerType = ownerType.Elem()
-	}
-	return &RefManager{
-		client:    client,
-		selector:  s,
-		owner:     owner,
-		ownerType: ownerType,
-		schema:    schema,
-	}, nil
-}
 
 // ClaimOwnedObjects tries to take ownership of a list of objects for this controller.
 func (mgr *RefManager) ClaimOwnedObjects(objs []metav1.Object, filters ...func(metav1.Object) bool) ([]metav1.Object, error) {
@@ -213,7 +178,7 @@ func (mgr *RefManager) adopt(obj metav1.Object) error {
 		return fmt.Errorf("can't update Object %v/%v (%v) owner reference: fail to cast to client.Object", obj.GetNamespace(), obj.GetName(), obj.GetUID())
 	}
 
-	if err := mgr.registerUpdate(clientObj); err != nil {
+	if err := mgr.commitUpdate(clientObj); err != nil {
 		return fmt.Errorf("can't update Object %v/%v (%v) owner reference: %v", obj.GetNamespace(), obj.GetName(), obj.GetUID(), err)
 	}
 	return nil
@@ -234,7 +199,7 @@ func (mgr *RefManager) release(obj metav1.Object) error {
 		}
 
 		clientObj.SetOwnerReferences(append(clientObj.GetOwnerReferences()[:idx], clientObj.GetOwnerReferences()[idx+1:]...))
-		if err := mgr.registerUpdate(clientObj); err != nil {
+		if err := mgr.commitUpdate(clientObj); err != nil {
 			return fmt.Errorf("can't remove Pod %v/%v (%v) owner reference %v/%v (%v): %v",
 				obj.GetNamespace(), obj.GetName(), obj.GetUID(), obj.GetNamespace(), obj.GetName(), mgr.owner.GetUID(), err)
 		}
@@ -243,6 +208,6 @@ func (mgr *RefManager) release(obj metav1.Object) error {
 	return nil
 }
 
-func (mgr *RefManager) registerUpdate(object client.Object) error {
+func (mgr *RefManager) commitUpdate(object client.Object) error {
 	return mgr.client.Update(context.TODO(), object)
 }

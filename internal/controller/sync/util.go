@@ -79,15 +79,23 @@ func calculateDiffs(pw *workloadv1alpha1.PartitionWorkload, pods []*v1.Pod, curr
 	}()
 
 	for _, p := range pods {
-		if equalToRevisionHash(p, updatedRevision) {
+		if generalutil.EqualToRevisionHash(p, updatedRevision) {
+			klog.InfoS("---- pod diff details ----")
+			klog.InfoS("Pod revision is the updated revision", "pod revision hash", p.GetLabels()[apps.ControllerRevisionHashLabelKey], "updated revision being compared to", updatedRevision)
 			newRevisionCount++
 		} else {
+			klog.InfoS("Pod revision is not the updated revision", "pod revision hash", p.GetLabels()[apps.ControllerRevisionHashLabelKey], "updated revision being compared to", updatedRevision)
 			oldRevisionCount++
 		}
 	}
 
 	updateNewDiff := newRevisionCount - partition
 	updateOldDiff := oldRevisionCount - (replicas - partition)
+
+	if updatedRevision == currentRevision {
+		updateNewDiff = newRevisionCount + oldRevisionCount - replicas
+		updateOldDiff = 0
+	}
 
 	klog.InfoS("Update Diffs and revisions", "current revision diff", updateOldDiff, "new revision diff", updateNewDiff, "current revision name", currentRevision, "updatedRevision name", updatedRevision)
 
@@ -116,17 +124,13 @@ func calculateDiffs(pw *workloadv1alpha1.PartitionWorkload, pods []*v1.Pod, curr
 
 func groupUpdatedAndNotUpdatedPods(pods []*v1.Pod, updatedRevision string) (update, notUpdate []*v1.Pod) {
 	for _, p := range pods {
-		if equalToRevisionHash(p, updatedRevision) {
+		if generalutil.EqualToRevisionHash(p, updatedRevision) {
 			update = append(update, p)
 		} else {
 			notUpdate = append(notUpdate, p)
 		}
 	}
 	return
-}
-
-func equalToRevisionHash(pod *v1.Pod, hash string) bool {
-	return pod.GetLabels()[apps.ControllerRevisionHashLabelKey] == hash
 }
 
 func newMultiVersionedPods(currentPW, updatedPW *workloadv1alpha1.PartitionWorkload,

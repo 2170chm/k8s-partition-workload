@@ -19,8 +19,11 @@ import (
 
 	workloadv1alpha1 "github.com/2170chm/k8s-partition-workload/api/v1alpha1"
 	condition "github.com/2170chm/k8s-partition-workload/internal/controller/condition"
+	"github.com/2170chm/k8s-partition-workload/internal/controller/config"
 	revision "github.com/2170chm/k8s-partition-workload/internal/controller/revision"
+	status "github.com/2170chm/k8s-partition-workload/internal/controller/status"
 	sync "github.com/2170chm/k8s-partition-workload/internal/controller/sync"
+	general "github.com/2170chm/k8s-partition-workload/internal/util/general"
 	refmanager "github.com/2170chm/k8s-partition-workload/internal/util/refmanager"
 )
 
@@ -31,6 +34,7 @@ type PartitionWorkloadReconciler struct {
 
 	HistoryControl history.Interface
 	SyncControl    sync.Interface
+	StatusUpdater  status.Interface
 }
 
 // +kubebuilder:rbac:groups=workload.scott.dev,resources=partitionworkloads,verbs=get;list;watch;create;update;patch;delete
@@ -116,15 +120,21 @@ func (r *PartitionWorkloadReconciler) Reconcile(ctx context.Context, request ctr
 	syncErr := r.syncPods(instance, &newStatus, currentRevision, updateRevision, revisions, claimedPods)
 
 	// Update the status of the resource
-	// if err = status.UpdateStatus(instance, &newStatus, claimedPods); err != nil {
-	// 	return reconcile.Result{}, err
-	// }
+	if err = r.StatusUpdater.UpdateStatus(instance, &newStatus, claimedPods); err != nil {
+		return reconcile.Result{}, err
+	}
 
 	// Clean up history that's above of the limit
-	// if err = revision.TruncateHistory(instance, claimedPods, revisions, currentRevision, updateRevision); err != nil {
-	// 	klog.ErrorS(err, "Failed to truncate history for PartitionWorkload", "PartitionWorkload", request)
-	// }
+	if err = r.truncateHistory(instance, claimedPods, revisions, currentRevision, updateRevision); err != nil {
+		klog.ErrorS(err, "Failed to truncate history for PartitionWorkload", "PartitionWorkload", request)
+	}
 
+	if syncErr != nil {
+		klog.InfoS("---- sync error ----")
+		klog.ErrorS(syncErr, "Failed to sync pods for PartitionWorkload", "PartitionWorkload", request)
+	}
+
+	klog.InfoS("Successfully reconciled without errors")
 	// Return the syncErr. If there is a syncErr, controller will requeue
 	return reconcile.Result{}, syncErr
 }
@@ -153,7 +163,7 @@ func (r *PartitionWorkloadReconciler) getActivePods(instance *workloadv1alpha1.P
 }
 
 func (r *PartitionWorkloadReconciler) claimPods(instance *workloadv1alpha1.PartitionWorkload, scheme *runtime.Scheme, pods []*v1.Pod) ([]*v1.Pod, error) {
-	mgr, err := refmanager.New(r.Client, instance.Spec.Selector, instance, scheme)
+	mgr, err := refmanager.NewRefManager(r.Client, instance.Spec.Selector, instance, scheme)
 	if err != nil {
 		return nil, err
 	}
@@ -284,4 +294,57 @@ func (r *PartitionWorkloadReconciler) syncPods(
 	}
 
 	return err
+}
+
+// truncateHistory truncates any non-live ControllerRevisions in revisions from pw's history. The UpdateRevision and
+// CurrentRevision in pw's Status are considered to be live. Any revisions associated with the Pods in pods are also
+// considered to be live. Non-live revisions are deleted, starting with the revision with the lowest Revision, until
+// only RevisionHistoryLimit revisions remain. If the returned error is nil the operation was successful. This method
+// expects that revisions is sorted when supplied.
+//
+// Live revisions = revisions actively used by pods or tracked in status
+// Historic revisions = old unused revisions that can be garbage collected
+// This prevents unbounded growth of ControllerRevision objects
+func (r *PartitionWorkloadReconciler) truncateHistory(
+	pw *workloadv1alpha1.PartitionWorkload,
+	pods []*v1.Pod,
+	revisions []*apps.ControllerRevision,
+	current *apps.ControllerRevision,
+	update *apps.ControllerRevision,
+) error {
+	nonLiveRevisions := make([]*apps.ControllerRevision, 0, len(revisions))
+
+	// Identify which revisions are still in use:
+	// 1. Current/update revisions (in status)
+	// 2. Revisions that any existing pod is running
+	// All others are candidates for deletion
+	for i := range revisions {
+		if revisions[i].Name != current.Name && revisions[i].Name != update.Name {
+			var found bool
+			for _, pod := range pods {
+				if general.EqualToRevisionHash(pod, revisions[i].Name) {
+					found = true
+					break
+				}
+			}
+			if !found {
+				nonLiveRevisions = append(nonLiveRevisions, revisions[i])
+			}
+		}
+	}
+	historySize := len(nonLiveRevisions)
+	historyLimit := config.DefaultHistoryLimit
+	if historySize <= historyLimit {
+		return nil
+	}
+
+	// Delete oldest non-live revisions first (array is sorted oldest to newest)
+	// Keep only the most recent 'historyLimit' revisions for potential rollback
+	nonLiveRevisions = nonLiveRevisions[:(historySize - historyLimit)]
+	for i := 0; i < len(nonLiveRevisions); i++ {
+		if err := r.HistoryControl.DeleteControllerRevision(nonLiveRevisions[i]); err != nil {
+			return err
+		}
+	}
+	return nil
 }

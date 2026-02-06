@@ -16,15 +16,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-// NewHistory returns an instance of Interface that uses client to communicate with the API Server and lister to list ControllerRevisions.
-func NewHistory(c client.Client) history.Interface {
-	return &realHistory{Client: c}
-}
-
-type realHistory struct {
-	client.Client
-}
-
 func (rh *realHistory) ListControllerRevisions(parent metav1.Object, selector labels.Selector) ([]*apps.ControllerRevision, error) {
 	// List all revisions in the namespace that match the selector
 	revisions := apps.ControllerRevisionList{}

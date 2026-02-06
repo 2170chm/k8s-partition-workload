@@ -5,6 +5,10 @@ import (
 	"k8s.io/client-go/kubernetes/scheme"
 )
 
+const (
+	DefaultHistoryLimit = 10
+)
+
 var (
 	SchemaGroupVersion = workloadv1alpha1.SchemeGroupVersion
 	PatchCodec         = scheme.Codecs.LegacyCodec(SchemaGroupVersion)
