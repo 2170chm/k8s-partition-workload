@@ -125,7 +125,7 @@ func (r *PartitionWorkloadReconciler) Reconcile(ctx context.Context, request ctr
 	}
 
 	// Clean up history that's above of the limit
-	if err = r.truncateHistory(instance, claimedPods, revisions, currentRevision, updateRevision); err != nil {
+	if err = r.truncateHistory(claimedPods, revisions, currentRevision, updateRevision); err != nil {
 		klog.ErrorS(err, "Failed to truncate history for PartitionWorkload", "PartitionWorkload", request)
 	}
 
@@ -306,7 +306,6 @@ func (r *PartitionWorkloadReconciler) syncPods(
 // Historic revisions = old unused revisions that can be garbage collected
 // This prevents unbounded growth of ControllerRevision objects
 func (r *PartitionWorkloadReconciler) truncateHistory(
-	pw *workloadv1alpha1.PartitionWorkload,
 	pods []*v1.Pod,
 	revisions []*apps.ControllerRevision,
 	current *apps.ControllerRevision,
@@ -332,8 +331,17 @@ func (r *PartitionWorkloadReconciler) truncateHistory(
 			}
 		}
 	}
+
+	// Note that the historySize is the max number of non-live revisions allowed
+	// A live revision is a revision that is either being used by at least one
+	// pod or is the updaterevision or the currenrevision of PartitionWorkload
+	// It does not represent the total number of controllerrevisions
 	historySize := len(nonLiveRevisions)
 	historyLimit := config.DefaultHistoryLimit
+
+	klog.InfoS("---- truncate history ----")
+	klog.InfoS("Calculated history metrics", "history size", historySize, "history limit", historyLimit)
+
 	if historySize <= historyLimit {
 		return nil
 	}
@@ -342,6 +350,7 @@ func (r *PartitionWorkloadReconciler) truncateHistory(
 	// Keep only the most recent 'historyLimit' revisions for potential rollback
 	nonLiveRevisions = nonLiveRevisions[:(historySize - historyLimit)]
 	for i := 0; i < len(nonLiveRevisions); i++ {
+		klog.InfoS("Deleting revision", "revision", klog.KObj(nonLiveRevisions[i]))
 		if err := r.HistoryControl.DeleteControllerRevision(nonLiveRevisions[i]); err != nil {
 			return err
 		}
