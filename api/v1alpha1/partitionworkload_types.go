@@ -49,6 +49,7 @@ type PartitionWorkloadSpec struct {
 	// Note that there can be more than two versions of pods. When the desired state is reached,
 	// exactly spec.Partition number of pods have the latest
 	// version. It defaults to spec.Replicas by controller logic.
+	// If it is larger than spec.Replicas, it is clamped to be the same as spec.Replicas.
 	// +kubebuilder:validation:Minimum=0
 	Partition *int32 `json:"partition,omitempty"`
 }

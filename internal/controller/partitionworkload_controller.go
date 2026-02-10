@@ -117,7 +117,7 @@ func (r *PartitionWorkloadReconciler) Reconcile(ctx context.Context, request ctr
 	}
 
 	// Core logic to scale and update pods
-	syncErr := r.syncPods(instance, &newStatus, currentRevision, updateRevision, revisions, claimedPods)
+	syncErr := r.syncPods(instance, &newStatus, currentRevision, updateRevision, claimedPods)
 
 	// Update the status of the resource
 	if err = r.StatusUpdater.UpdateStatus(instance, &newStatus, claimedPods); err != nil {
@@ -254,8 +254,7 @@ func (r *PartitionWorkloadReconciler) getActiveRevisions(instance *workloadv1alp
 
 func (r *PartitionWorkloadReconciler) syncPods(
 	instance *workloadv1alpha1.PartitionWorkload, newStatus *workloadv1alpha1.PartitionWorkloadStatus,
-	currentRevision, updateRevision *apps.ControllerRevision, revisions []*apps.ControllerRevision,
-	pods []*v1.Pod,
+	currentRevision, updateRevision *apps.ControllerRevision, pods []*v1.Pod,
 ) error {
 	// If PartitionWorkload is being deleted, just let garbage collection clean up pods
 	if instance.DeletionTimestamp != nil {

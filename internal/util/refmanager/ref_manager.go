@@ -209,5 +209,9 @@ func (mgr *RefManager) release(obj metav1.Object) error {
 }
 
 func (mgr *RefManager) commitUpdate(object client.Object) error {
-	return mgr.client.Update(context.TODO(), object)
+	return commitUpdate(object, mgr.client)
+}
+
+var commitUpdate = func(object client.Object, c client.Client) error {
+	return c.Update(context.TODO(), object)
 }

@@ -17,6 +17,10 @@ const (
 
 	// When batching pod creates, initialBatchSize is the size of the initial batch.
 	initialBatchSize = 1
+
+	notEnoughPodsWithUpdatedRevisionToDeleteErrString = "Not enough pods with the updated revision to delete"
+
+	notEnoughPodsWithCurrentRevisionToDeleteErrString = "Not enough pods with the current revision to delete"
 )
 
 // Scale manages the scaling of pods to match the desired replica count and pod versions
@@ -141,7 +145,7 @@ func (r *realSync) deletePods(expectedUpdatedDeletions int, expectedCurrentDelet
 	var podsToDelete []*v1.Pod
 	if expectedUpdatedDeletions > 0 {
 		if len(updatedPods) < expectedUpdatedDeletions {
-			return fmt.Errorf("Not enough pods with the updated revision to delete")
+			return fmt.Errorf(notEnoughPodsWithUpdatedRevisionToDeleteErrString)
 		}
 		sortPodsOldestFirst(updatedPods)
 		podsToDelete = append(podsToDelete, updatedPods[:expectedUpdatedDeletions]...)
@@ -149,7 +153,7 @@ func (r *realSync) deletePods(expectedUpdatedDeletions int, expectedCurrentDelet
 
 	if expectedCurrentDeletions > 0 {
 		if len(notUpdatedPods) < expectedCurrentDeletions {
-			return fmt.Errorf("Not enough pods with the current revision to delete")
+			return fmt.Errorf(notEnoughPodsWithCurrentRevisionToDeleteErrString)
 		}
 		sortPodsOldestFirst(notUpdatedPods)
 		podsToDelete = append(podsToDelete, notUpdatedPods[:expectedCurrentDeletions]...)

@@ -1,19 +1,3 @@
-/*
-Copyright 2021 The Kruise Authors.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
-
 package sync
 
 import (
@@ -140,15 +124,15 @@ func newMultiVersionedPods(currentPW, updatedPW *workloadv1alpha1.PartitionWorkl
 ) ([]*v1.Pod, error) {
 	var newPods []*v1.Pod
 	if expectedCurrentCreations > 0 {
-		newPods = append(newPods, newVersionedPods(currentPW, currentRevision, expectedCurrentCreations)...)
+		newPods = append(newPods, NewVersionedPods(currentPW, currentRevision, expectedCurrentCreations)...)
 	}
 	if expectedUpdatedCreations > 0 {
-		newPods = append(newPods, newVersionedPods(updatedPW, updatedRevision, expectedUpdatedCreations)...)
+		newPods = append(newPods, NewVersionedPods(updatedPW, updatedRevision, expectedUpdatedCreations)...)
 	}
 	return newPods, nil
 }
 
-func newVersionedPods(pw *workloadv1alpha1.PartitionWorkload, revision string, replicas int) []*v1.Pod {
+func NewVersionedPods(pw *workloadv1alpha1.PartitionWorkload, revision string, replicas int) []*v1.Pod {
 	var newPods []*v1.Pod
 	for i := 0; i < replicas; i++ {
 

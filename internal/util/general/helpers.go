@@ -1,6 +1,7 @@
 package general
 
 import (
+	"encoding/json"
 	"sort"
 	"sync"
 
@@ -60,4 +61,13 @@ func DoItSlowly(count int, initialBatchSize int, fn func() error) (int, error) {
 
 func EqualToRevisionHash(pod *v1.Pod, hash string) bool {
 	return pod.GetLabels()[apps.ControllerRevisionHashLabelKey] == hash
+}
+
+func Int32Ptr(i int32) *int32 {
+	return &i
+}
+
+func DumpJSON(o interface{}) string {
+	j, _ := json.Marshal(o)
+	return string(j)
 }
