@@ -14,22 +14,6 @@ const (
 	newRevision     = "2"
 )
 
-func getPW(replicas int32) *workloadv1alpha1.PartitionWorkload {
-	return &workloadv1alpha1.PartitionWorkload{
-		Spec: workloadv1alpha1.PartitionWorkloadSpec{
-			Replicas: generalutil.Int32Ptr(replicas),
-		},
-	}
-}
-
-func flatten(podSlices ...[]*v1.Pod) []*v1.Pod {
-	var pods []*v1.Pod
-	for _, slice := range podSlices {
-		pods = append(pods, slice...)
-	}
-	return pods
-}
-
 func TestCalculateStatus(t *testing.T) {
 	tests := []struct {
 		name           string
@@ -114,4 +98,20 @@ func TestCalculateStatus(t *testing.T) {
 			}
 		})
 	}
+}
+
+func getPW(replicas int32) *workloadv1alpha1.PartitionWorkload {
+	return &workloadv1alpha1.PartitionWorkload{
+		Spec: workloadv1alpha1.PartitionWorkloadSpec{
+			Replicas: generalutil.Int32Ptr(replicas),
+		},
+	}
+}
+
+func flatten(podSlices ...[]*v1.Pod) []*v1.Pod {
+	var pods []*v1.Pod
+	for _, slice := range podSlices {
+		pods = append(pods, slice...)
+	}
+	return pods
 }

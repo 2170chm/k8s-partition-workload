@@ -32,9 +32,10 @@ type PartitionWorkloadReconciler struct {
 	client.Client
 	Scheme *runtime.Scheme
 
-	HistoryControl history.Interface
-	SyncControl    sync.Interface
-	StatusUpdater  status.Interface
+	HistoryControl  history.Interface
+	SyncControl     sync.Interface
+	StatusUpdater   status.Interface
+	RevisionControl revision.Interface
 }
 
 // +kubebuilder:rbac:groups=workload.scott.dev,resources=partitionworkloads,verbs=get;list;watch;create;update;patch;delete
@@ -209,7 +210,7 @@ func (r *PartitionWorkloadReconciler) getActiveRevisions(instance *workloadv1alp
 
 	// Create a new revision representing the current spec's pod template
 	// If an equivalent revision already exists, it will be reused
-	updateRevision, err := revision.NewRevision(instance, nextRevision, &collisionCount)
+	updateRevision, err := r.RevisionControl.NewRevision(instance, nextRevision, &collisionCount)
 	if err != nil {
 		return nil, nil, collisionCount, err
 	}
@@ -265,11 +266,11 @@ func (r *PartitionWorkloadReconciler) syncPods(
 	// currentSet = PartitionWorkload with currentRevision's pod template
 	// updateSet = PartitionWorkload with updateRevision's pod template (latest spec)
 	// This lets us compare and transition pods between versions
-	currentPW, err := revision.ApplyRevision(instance, currentRevision)
+	currentPW, err := r.RevisionControl.ApplyRevision(instance, currentRevision)
 	if err != nil {
 		return err
 	}
-	updatedPW, err := revision.ApplyRevision(instance, updateRevision)
+	updatedPW, err := r.RevisionControl.ApplyRevision(instance, updateRevision)
 	if err != nil {
 		return err
 	}

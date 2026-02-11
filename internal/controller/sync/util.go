@@ -13,7 +13,6 @@ import (
 	kubecontroller "k8s.io/kubernetes/pkg/controller"
 
 	workloadv1alpha1 "github.com/2170chm/k8s-partition-workload/api/v1alpha1"
-	config "github.com/2170chm/k8s-partition-workload/internal/controller/config"
 	generalutil "github.com/2170chm/k8s-partition-workload/internal/util/general"
 	apps "k8s.io/api/apps/v1"
 )
@@ -136,7 +135,7 @@ func NewVersionedPods(pw *workloadv1alpha1.PartitionWorkload, revision string, r
 	var newPods []*v1.Pod
 	for i := 0; i < replicas; i++ {
 
-		pod, _ := kubecontroller.GetPodFromTemplate(&pw.Spec.Template, pw, metav1.NewControllerRef(pw, config.ControllerKind))
+		pod, _ := kubecontroller.GetPodFromTemplate(&pw.Spec.Template, pw, metav1.NewControllerRef(pw, workloadv1alpha1.SchemeGroupVersion.WithKind("PartitionWorkload")))
 		if pod.Labels == nil {
 			pod.Labels = make(map[string]string)
 		}

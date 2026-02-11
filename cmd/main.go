@@ -37,6 +37,7 @@ import (
 
 	workloadv1alpha1 "github.com/2170chm/k8s-partition-workload/api/v1alpha1"
 	"github.com/2170chm/k8s-partition-workload/internal/controller"
+	"github.com/2170chm/k8s-partition-workload/internal/controller/revision"
 	status "github.com/2170chm/k8s-partition-workload/internal/controller/status"
 	sync "github.com/2170chm/k8s-partition-workload/internal/controller/sync"
 	history "github.com/2170chm/k8s-partition-workload/internal/util/history"
@@ -188,11 +189,12 @@ func main() {
 	// }
 
 	if err := (&controller.PartitionWorkloadReconciler{
-		Client:         mgr.GetClient(),
-		Scheme:         mgr.GetScheme(),
-		HistoryControl: history.NewHistory(mgr.GetClient()),
-		SyncControl:    sync.NewSync(mgr.GetClient()),
-		StatusUpdater:  status.NewStatusUpdater(mgr.GetClient()),
+		Client:          mgr.GetClient(),
+		Scheme:          mgr.GetScheme(),
+		HistoryControl:  history.NewHistory(mgr.GetClient()),
+		SyncControl:     sync.NewSync(mgr.GetClient()),
+		StatusUpdater:   status.NewStatusUpdater(mgr.GetClient()),
+		RevisionControl: revision.NewRevisionControl(mgr.GetClient(), mgr.GetScheme()),
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "PartitionWorkload")
 		os.Exit(1)

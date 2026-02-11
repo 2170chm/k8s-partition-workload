@@ -6,19 +6,18 @@ import (
 	workloadv1alpha1 "github.com/2170chm/k8s-partition-workload/api/v1alpha1"
 	apps "k8s.io/api/apps/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	serializer "k8s.io/apimachinery/pkg/runtime/serializer"
 	"k8s.io/apimachinery/pkg/util/strategicpatch"
 	"k8s.io/kubernetes/pkg/controller/history"
-
-	config "github.com/2170chm/k8s-partition-workload/internal/controller/config"
 )
 
-func NewRevision(instance *workloadv1alpha1.PartitionWorkload, revision int64, collisionCount *int32) (*apps.ControllerRevision, error) {
-	patch, err := getPatch(instance)
+func (r *realRevision) NewRevision(instance *workloadv1alpha1.PartitionWorkload, revision int64, collisionCount *int32) (*apps.ControllerRevision, error) {
+	patch, err := r.getPatch(instance)
 	if err != nil {
 		return nil, err
 	}
 	cr, err := history.NewControllerRevision(instance,
-		config.ControllerKind,
+		workloadv1alpha1.SchemeGroupVersion.WithKind("PartitionWorkload"),
 		instance.Spec.Template.Labels,
 		runtime.RawExtension{Raw: patch},
 		revision,
@@ -35,8 +34,9 @@ func NewRevision(instance *workloadv1alpha1.PartitionWorkload, revision int64, c
 	return cr, nil
 }
 
-func getPatch(instance *workloadv1alpha1.PartitionWorkload) ([]byte, error) {
-	str, err := runtime.Encode(config.PatchCodec, instance)
+func (r *realRevision) getPatch(instance *workloadv1alpha1.PartitionWorkload) ([]byte, error) {
+	patchCodec := serializer.NewCodecFactory(r.Scheme).LegacyCodec(workloadv1alpha1.SchemeGroupVersion)
+	str, err := runtime.Encode(patchCodec, instance)
 	if err != nil {
 		return nil, err
 	}
@@ -54,9 +54,10 @@ func getPatch(instance *workloadv1alpha1.PartitionWorkload) ([]byte, error) {
 	return patch, err
 }
 
-func ApplyRevision(instance *workloadv1alpha1.PartitionWorkload, revision *apps.ControllerRevision) (*workloadv1alpha1.PartitionWorkload, error) {
+func (r *realRevision) ApplyRevision(instance *workloadv1alpha1.PartitionWorkload, revision *apps.ControllerRevision) (*workloadv1alpha1.PartitionWorkload, error) {
+	patchCodec := serializer.NewCodecFactory(r.Scheme).LegacyCodec(workloadv1alpha1.SchemeGroupVersion)
 	clone := instance.DeepCopy()
-	cloneBytes, err := runtime.Encode(config.PatchCodec, clone)
+	cloneBytes, err := runtime.Encode(patchCodec, clone)
 	if err != nil {
 		return nil, err
 	}

@@ -2,6 +2,9 @@ package config
 
 import (
 	workloadv1alpha1 "github.com/2170chm/k8s-partition-workload/api/v1alpha1"
+	apps "k8s.io/api/apps/v1"
+	v1 "k8s.io/api/core/v1"
+	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/client-go/kubernetes/scheme"
 )
 
@@ -14,7 +17,13 @@ const (
 )
 
 var (
+	Scheme             = scheme.Scheme
 	SchemaGroupVersion = workloadv1alpha1.SchemeGroupVersion
 	PatchCodec         = scheme.Codecs.LegacyCodec(SchemaGroupVersion)
-	ControllerKind     = SchemaGroupVersion.WithKind("PartitionWorkload")
 )
+
+func init() {
+	utilruntime.Must(v1.AddToScheme(Scheme))
+	utilruntime.Must(apps.AddToScheme(Scheme))
+	utilruntime.Must(workloadv1alpha1.AddToScheme(Scheme))
+}
