@@ -7,6 +7,7 @@ import (
 
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/util/uuid"
 	"k8s.io/client-go/kubernetes/scheme"
@@ -22,7 +23,7 @@ func TestMain(m *testing.M) {
 }
 
 func TestCreateApplyRevision(t *testing.T) {
-	r := &realRevision{}
+	r := newFakeControl()
 	pw := getPW()
 	// pw.Status.CollisionCount = new(int32)
 	revision, err := r.NewRevision(pw, 1, pw.Status.CollisionCount)
@@ -57,7 +58,7 @@ func TestCreateApplyRevision(t *testing.T) {
 }
 
 func TestApplyRevision(t *testing.T) {
-	r := &realRevision{}
+	r := newFakeControl()
 	pw := getPW()
 	currentpw := pw.DeepCopy()
 	currentRevision, err := r.NewRevision(pw, 1, pw.Status.CollisionCount)
@@ -87,6 +88,13 @@ func TestApplyRevision(t *testing.T) {
 	if !reflect.DeepEqual(updatepw.Spec.Template, restoredUpdatepw.Spec.Template) {
 		t.Errorf("want %v got %v", updatepw.Spec.Template, restoredUpdatepw.Spec.Template)
 	}
+}
+
+func newFakeControl() *realRevision {
+	scheme := runtime.NewScheme()
+	utilruntime.Must(workloadv1alpha1.AddToScheme(scheme))
+	utilruntime.Must(v1.AddToScheme(scheme))
+	return &realRevision{Scheme: scheme}
 }
 
 func getPW() *workloadv1alpha1.PartitionWorkload {
