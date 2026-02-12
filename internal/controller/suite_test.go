@@ -12,12 +12,17 @@ import (
 
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
+	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
 	workloadv1alpha1 "github.com/2170chm/k8s-partition-workload/api/v1alpha1"
+	revision "github.com/2170chm/k8s-partition-workload/internal/controller/revision"
+	status "github.com/2170chm/k8s-partition-workload/internal/controller/status"
+	sync "github.com/2170chm/k8s-partition-workload/internal/controller/sync"
+	"github.com/2170chm/k8s-partition-workload/internal/util/history"
 	// +kubebuilder:scaffold:imports
 )
 
@@ -65,8 +70,26 @@ var _ = BeforeSuite(func() {
 	Expect(err).NotTo(HaveOccurred())
 	Expect(cfg).NotTo(BeNil())
 
-	k8sClient, err = client.New(cfg, client.Options{Scheme: scheme.Scheme})
+	k8sManager, err := ctrl.NewManager(cfg, ctrl.Options{
+		Scheme: scheme.Scheme,
+	})
 	Expect(err).NotTo(HaveOccurred())
+
+	Expect((&PartitionWorkloadReconciler{
+		Client:          k8sManager.GetClient(),
+		Scheme:          k8sManager.GetScheme(),
+		HistoryControl:  history.NewHistory(k8sManager.GetClient()),
+		SyncControl:     sync.NewSync(k8sManager.GetClient()),
+		StatusUpdater:   status.NewStatusUpdater(k8sManager.GetClient()),
+		RevisionControl: revision.NewRevisionControl(k8sManager.GetClient(), k8sManager.GetScheme()),
+	}).SetupWithManager(k8sManager)).To(Succeed())
+
+	go func() {
+		defer GinkgoRecover()
+		Expect(k8sManager.Start(ctx)).To(Succeed())
+	}()
+
+	k8sClient = k8sManager.GetClient()
 	Expect(k8sClient).NotTo(BeNil())
 })
 

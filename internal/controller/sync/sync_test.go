@@ -748,12 +748,12 @@ func getPW(replicas int32) *workloadv1alpha1.PartitionWorkload {
 			UID:       testUID,
 		},
 		Spec: workloadv1alpha1.PartitionWorkloadSpec{
+			Replicas: generalutil.Int32Ptr(replicas),
 			Selector: &metav1.LabelSelector{
 				MatchLabels: map[string]string{
 					"app": "test-app",
 				},
 			},
-			Replicas: generalutil.Int32Ptr(replicas),
 			Template: v1.PodTemplateSpec{
 				Spec: v1.PodSpec{
 					Containers: []v1.Container{
