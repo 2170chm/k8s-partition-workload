@@ -1,8 +1,10 @@
 # k8s-partition-workload
-// TODO(user): Add simple overview of use/purpose
+Partition workload is a kubernetes custom resource definition that supports automatic management of pods, partitioned update/rollback, and revision history.
 
 ## Description
-// TODO(user): An in-depth paragraph about your project and overview of use
+Partition is similar to a k8s replicaset in that you can specify replicas and templates and the partition workload automatically manages the pods to reach
+the desired state. It supports partitioned update and rollback where you can specify the number of pods that should be at the updateRevision. The rest of
+the pods will stay or be rolled back to currentRevision. It also supports revision history where it stores the recent revisions and reuse them.
 
 ## Getting Started
 
@@ -110,12 +112,13 @@ the '--force' flag and manually ensure that any custom configuration
 previously added to 'dist/chart/values.yaml' or 'dist/chart/manager/manager.yaml'
 is manually re-applied afterwards.
 
-## Contributing
-// TODO(user): Add detailed information on how you would like others to contribute to this project
-
 **NOTE:** Run `make help` for more information on all potential `make` targets
 
 More information can be found via the [Kubebuilder Documentation](https://book.kubebuilder.io/introduction.html)
+
+## Acknowledgments
+
+This project references code from [OpenKruise](https://github.com/openkruise/kruise), which is licensed under the Apache License 2.0. OpenKruise is a CNCF incubating project for automated management of large-scale applications on Kubernetes.
 
 ## License
 
