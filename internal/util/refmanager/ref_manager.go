@@ -15,6 +15,7 @@ import (
 
 // ClaimOwnedObjects tries to take ownership of a list of objects for this controller.
 func (mgr *RefManager) ClaimOwnedObjects(objs []metav1.Object, filters ...func(metav1.Object) bool) ([]metav1.Object, error) {
+	// Label matching with additional filters if needed
 	match := func(obj metav1.Object) bool {
 		if !mgr.selector.Matches(labels.Set(obj.GetLabels())) {
 			return false
@@ -42,6 +43,7 @@ func (mgr *RefManager) ClaimOwnedObjects(objs []metav1.Object, filters ...func(m
 	return claimObjs, utilerrors.NewAggregate(errlist)
 }
 
+// Claim one object
 func (mgr *RefManager) claimObject(obj metav1.Object, match func(metav1.Object) bool) (bool, error) {
 	controllerRef := metav1.GetControllerOf(obj)
 	if controllerRef != nil {
@@ -105,6 +107,7 @@ func (mgr *RefManager) canAdoptOnce() error {
 	return mgr.canAdoptErr
 }
 
+// Gets the owner from API server to see if it still exists and hasn't changed
 func (mgr *RefManager) getOwner() (runtime.Object, error) {
 	return getOwner(mgr.owner, mgr.schema, mgr.client)
 }
@@ -115,6 +118,7 @@ var getOwner = func(owner metav1.Object, schema *runtime.Scheme, c client.Client
 		return nil, fmt.Errorf("fail to convert %s/%s to runtime object", owner.GetNamespace(), owner.GetName())
 	}
 
+	// Get the group version kind of the object
 	kinds, _, err := schema.ObjectKinds(runtimeObj)
 	if err != nil {
 		return nil, err
@@ -135,6 +139,7 @@ var getOwner = func(owner metav1.Object, schema *runtime.Scheme, c client.Client
 	return obj, nil
 }
 
+// Returns nil error if the owner from the API server is not deleted and has not changed.
 func (mgr *RefManager) canAdopt() error {
 	fresh, err := mgr.getOwner()
 	if err != nil {

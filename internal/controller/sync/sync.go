@@ -53,8 +53,8 @@ func (r *realSync) ScaleAndUpdate(
 	// - scaleDownNumOldRevision: how many pods with the current versions to delete
 	// This calculation includes both replica scaling and updates (updates are recreate updates so essentially
 	// it is the same as deleting a pod of a version and creating a pod with the target version). Hence the
-	// four scale nums can lead to the final desired state.
-	// It supports rollbacks as well if, for example, partition is decremented.
+	// four scale nums can represent the final desired state.
+	// It supports rollbacks as well if, for example, pw.spec.partition is decremented.
 	diffRes := calculateDiffs(updatedPW, pods, currentRevision, updatedRevision)
 	klog.InfoS("---- calculated pod diffs----")
 	klog.InfoS("calculated diffs", "detail", diffRes)

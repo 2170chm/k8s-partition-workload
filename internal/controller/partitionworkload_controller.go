@@ -263,8 +263,8 @@ func (r *PartitionWorkloadReconciler) syncPods(
 	}
 
 	// ApplyRevision reconstructs the PartitionWorkload spec as it was at each revision
-	// currentSet = PartitionWorkload with currentRevision's pod template
-	// updateSet = PartitionWorkload with updateRevision's pod template (latest spec)
+	// currentPW = PartitionWorkload with currentRevision's pod template
+	// updatePW = PartitionWorkload with updateRevision's pod template (latest spec)
 	// This lets us compare and transition pods between versions
 	currentPW, err := r.RevisionControl.ApplyRevision(instance, currentRevision)
 	if err != nil {

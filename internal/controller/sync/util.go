@@ -18,15 +18,13 @@ import (
 )
 
 type expectationDiffs struct {
-	// scaleUpNum is a non-negative integer, which indicates the number that should scale up.
+	// scaleUpNum is a non-negative integer, which indicates the number of updated revision pods that should scale up.
 	scaleUpNum int
-	// scaleNumOldRevision is a non-negative integer, which indicates the number of old revision Pods that should scale up.
-	// It might be bigger than scaleUpNum, but controller will scale up at most scaleUpNum number of Pods.
+	// scaleNumOldRevision is a non-negative integer, which indicates the number of current revision Pods that should scale up.
 	scaleUpNumOldRevision int
-	// scaleDownNum is a non-negative integer, which indicates the number that should scale down.
+	// scaleDownNum is a non-negative integer, which indicates the number of updated revision pods that should scale down.
 	scaleDownNum int
-	// scaleDownNumOldRevision is a non-negative integer, which indicates the number of old revision Pods that should scale down.
-	// It might be bigger than scaleDownNum, but controller will scale down at most scaleDownNum number of Pods.
+	// scaleDownNumOldRevision is a non-negative integer, which indicates the number of current revision Pods that should scale down.
 	scaleDownNumOldRevision int
 }
 
@@ -43,6 +41,8 @@ func (e expectationDiffs) String() string {
 func calculateDiffs(pw *workloadv1alpha1.PartitionWorkload, pods []*v1.Pod, currentRevision, updatedRevision string) (res expectationDiffs) {
 	replicas := int(*pw.Spec.Replicas)
 	var partition int
+
+	// Partition defaults to replicas. If specified partition is greater than replicas, clamp it to replicas
 	if pw.Spec.Partition != nil {
 		partition = integer.IntMin(int(*pw.Spec.Partition), replicas)
 	} else {
@@ -75,6 +75,9 @@ func calculateDiffs(pw *workloadv1alpha1.PartitionWorkload, pods []*v1.Pod, curr
 	updateNewDiff := newRevisionCount - partition
 	updateOldDiff := oldRevisionCount - (replicas - partition)
 
+	// If only one revision exists, sync to <replicas> number of pods with updatedRevision.
+	// This is because one when there is only one revision, all pods are grouped to updatedPods,
+	// So it would cause an error if we want to scale down current revision pods
 	if updatedRevision == currentRevision {
 		klog.InfoS("Only one revision detected, updating with latest revision to match replica count")
 		updateNewDiff = newRevisionCount + oldRevisionCount - replicas
@@ -134,13 +137,15 @@ func newMultiVersionedPods(currentPW, updatedPW *workloadv1alpha1.PartitionWorkl
 func NewVersionedPods(pw *workloadv1alpha1.PartitionWorkload, revision string, replicas int) []*v1.Pod {
 	var newPods []*v1.Pod
 	for i := 0; i < replicas; i++ {
-
 		pod, _ := kubecontroller.GetPodFromTemplate(&pw.Spec.Template, pw, metav1.NewControllerRef(pw, workloadv1alpha1.SchemeGroupVersion.WithKind("PartitionWorkload")))
 		if pod.Labels == nil {
 			pod.Labels = make(map[string]string)
 		}
+
+		// Write revision hash to labels for revision management
 		writeRevisionHash(pod, revision)
 
+		// Let k8s generate random name
 		pod.GenerateName = fmt.Sprintf("%s-", pw.Name)
 		pod.Namespace = pw.Namespace
 

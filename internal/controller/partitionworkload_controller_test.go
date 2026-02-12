@@ -333,7 +333,7 @@ var _ = Describe("PartitionWorkload Controller", func() {
 		})
 
 		It(`should successfully reconcile the resource - start with 1 replicas 1 partition. Scale to 2 replicas.
-		Then scale back to 1 replicas`, func() {
+		Then scale back to 1 replica`, func() {
 			By("Reconciling the created resource")
 			partitionworkload := &workloadv1alpha1.PartitionWorkload{}
 

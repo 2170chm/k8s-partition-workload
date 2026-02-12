@@ -77,7 +77,9 @@ func TestGetActiveRevisions(t *testing.T) {
 	}{
 		{
 			name: "new revision -> current revision keeps old number, new revision has new number",
-			getSetup: func(t *testing.T, r *PartitionWorkloadReconciler) (*workloadv1alpha1.PartitionWorkload, []*apps.ControllerRevision, string, string, int64, int, bool) {
+			getSetup: func(t *testing.T, r *PartitionWorkloadReconciler) (latestPW *workloadv1alpha1.PartitionWorkload,
+				revisions []*apps.ControllerRevision, expectedCurrentName string, expectedUpdatedName string,
+				expectedUpdatedRevisionNum int64, expectedRevisionCnt int, expectCurrentEqualsUpdated bool) {
 				currentPW := newPW(testCurrentImage)
 				updatedPW := newPW(testUpdatedImage)
 
@@ -97,7 +99,9 @@ func TestGetActiveRevisions(t *testing.T) {
 		},
 		{
 			name: "no change -> reuse previous revision",
-			getSetup: func(t *testing.T, r *PartitionWorkloadReconciler) (*workloadv1alpha1.PartitionWorkload, []*apps.ControllerRevision, string, string, int64, int, bool) {
+			getSetup: func(t *testing.T, r *PartitionWorkloadReconciler) (latestPW *workloadv1alpha1.PartitionWorkload,
+				revisions []*apps.ControllerRevision, expectedCurrentName string, expectedUpdatedName string,
+				expectedUpdatedRevisionNum int64, expectedRevisionCnt int, expectCurrentEqualsUpdated bool) {
 				pw := newPW(testCurrentImage)
 
 				existing, err := r.RevisionControl.NewRevision(pw, 1, generalutil.Int32Ptr(0))
@@ -116,7 +120,9 @@ func TestGetActiveRevisions(t *testing.T) {
 		},
 		{
 			name: "no change from a revision not immediately before -> reuse previous revision and bump revision num",
-			getSetup: func(t *testing.T, r *PartitionWorkloadReconciler) (*workloadv1alpha1.PartitionWorkload, []*apps.ControllerRevision, string, string, int64, int, bool) {
+			getSetup: func(t *testing.T, r *PartitionWorkloadReconciler) (latestPW *workloadv1alpha1.PartitionWorkload,
+				revisions []*apps.ControllerRevision, expectedCurrentName string, expectedUpdatedName string,
+				expectedUpdatedRevisionNum int64, expectedRevisionCnt int, expectCurrentEqualsUpdated bool) {
 				pw1 := newPW(testOldImage)
 				pw2 := newPW(testCurrentImage)
 
@@ -145,7 +151,9 @@ func TestGetActiveRevisions(t *testing.T) {
 		},
 		{
 			name: "first revision",
-			getSetup: func(t *testing.T, r *PartitionWorkloadReconciler) (*workloadv1alpha1.PartitionWorkload, []*apps.ControllerRevision, string, string, int64, int, bool) {
+			getSetup: func(t *testing.T, r *PartitionWorkloadReconciler) (latestPW *workloadv1alpha1.PartitionWorkload,
+				revisions []*apps.ControllerRevision, expectedCurrentName string, expectedUpdatedName string,
+				expectedUpdatedRevisionNum int64, expectedRevisionCnt int, expectCurrentEqualsUpdated bool) {
 				pw := newPW(testUpdatedImage)
 
 				pw.Status.CurrentRevision = ""

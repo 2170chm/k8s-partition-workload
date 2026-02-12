@@ -70,6 +70,7 @@ func (rh *realHistory) CreateControllerRevision(parent metav1.Object, revision *
 func (rh *realHistory) UpdateControllerRevision(revision *apps.ControllerRevision, newRevision int64) (*apps.ControllerRevision, error) {
 	clone := revision.DeepCopy()
 	namespacedName := types.NamespacedName{Namespace: clone.Namespace, Name: clone.Name}
+	// If there is a conflict, we return the version from the API server and the updateErr
 	err := retry.RetryOnConflict(retry.DefaultBackoff, func() error {
 		if clone.Revision == newRevision {
 			return nil

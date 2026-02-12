@@ -47,6 +47,7 @@ func (r *realRevision) getPatch(instance *workloadv1alpha1.PartitionWorkload) ([
 	spec := raw["spec"].(map[string]interface{})
 	template := spec["template"].(map[string]interface{})
 
+	// Only patch the pod template
 	specCopy["template"] = template
 	template["$patch"] = "replace"
 	objCopy["spec"] = specCopy

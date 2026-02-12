@@ -45,9 +45,11 @@ func TestCreateApplyRevision(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	// The modified template should be patched to the original version
 	if !history.EqualRevision(revision, restoredRevision) {
 		t.Errorf("wanted %v got %v", string(revision.Data.Raw), string(restoredRevision.Data.Raw))
 	}
+	// The modified annotations should not be reverted
 	value, ok := restoredRevision.Annotations[key]
 	if !ok {
 		t.Errorf("missing annotation %s", key)
