@@ -41,6 +41,7 @@ import (
 	status "github.com/2170chm/k8s-partition-workload/internal/controller/status"
 	sync "github.com/2170chm/k8s-partition-workload/internal/controller/sync"
 	history "github.com/2170chm/k8s-partition-workload/internal/util/history"
+	webhookv1alpha1 "github.com/2170chm/k8s-partition-workload/internal/webhook/v1alpha1"
 	// +kubebuilder:scaffold:imports
 )
 
@@ -198,6 +199,13 @@ func main() {
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "PartitionWorkload")
 		os.Exit(1)
+	}
+	// nolint:goconst
+	if os.Getenv("ENABLE_WEBHOOKS") != "false" {
+		if err := webhookv1alpha1.SetupPartitionWorkloadWebhookWithManager(mgr); err != nil {
+			setupLog.Error(err, "unable to create webhook", "webhook", "PartitionWorkload")
+			os.Exit(1)
+		}
 	}
 	// +kubebuilder:scaffold:builder
 

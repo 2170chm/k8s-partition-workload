@@ -1,0 +1,26 @@
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingWebhookConfiguration
+metadata:
+  name: validating-webhook-configuration
+webhooks:
+- admissionReviewVersions:
+  - v1
+  clientConfig:
+    service:
+      name: webhook-service
+      namespace: system
+      path: /validate-workload-scott-dev-v1alpha1-partitionworkload
+  failurePolicy: Fail
+  name: vpartitionworkload-v1alpha1.kb.io
+  rules:
+  - apiGroups:
+    - workload.scott.dev
+    apiVersions:
+    - v1alpha1
+    operations:
+    - CREATE
+    - UPDATE
+    resources:
+    - partitionworkloads
+  sideEffects: None
